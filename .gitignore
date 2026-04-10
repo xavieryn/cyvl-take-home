@@ -1,0 +1,33 @@
+# Environment & secrets
+.env
+token.json
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+*.icloud
+
+# Claude Code local settings
+.claude/
+
+# Personal notes & interview materials
+NOTES FOR ME.md
+CYVL-AI-Intern-Interview-Guide.pdf
+
+# Obsidian
+.obsidian/
