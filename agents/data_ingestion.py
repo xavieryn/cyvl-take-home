@@ -1,50 +1,50 @@
 """
 Data Ingestion Agent
-Fetches real emails and calendar events from Gmail and Google Calendar via OAuth2.
+Fetches real emails and calendar events via the Google API Python client.
+Requires token.json (created by scripts/auth_google.py).
 Only used when --live flag is passed to main.py.
 """
 
 import base64
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
 from models import Email, CalendarEvent
 import config
 
-# Google API libraries — graceful error if not installed
-try:
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    from googleapiclient.discovery import build
+TOKEN_PATH = Path(__file__).parent.parent / "token.json"
 
-    _GOOGLE_AVAILABLE = True
-except ImportError:
-    _GOOGLE_AVAILABLE = False
-
-_SCOPES = [
+SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/calendar.readonly",
 ]
 
 
-class DataIngestionAgent:
-    """Fetches real data from Gmail and Google Calendar."""
+def _get_credentials() -> Credentials:
+    if not TOKEN_PATH.exists():
+        raise FileNotFoundError(
+            f"token.json not found. Run: python scripts/auth_google.py"
+        )
+    creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        TOKEN_PATH.write_text(creds.to_json())
+    return creds
 
-    def __init__(self):
-        self._gmail = None
-        self._calendar = None
+
+class DataIngestionAgent:
+    """Fetches real data from Gmail and Google Calendar via the Google API client."""
 
     def run(self) -> Tuple[List[Email], List[CalendarEvent]]:
-        if not _GOOGLE_AVAILABLE:
-            raise ImportError(
-                "Google API libraries are not installed.\n"
-                "Run: pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client"
-            )
-        self._authenticate()
-        emails = self._fetch_emails()
-        events = self._fetch_calendar_events()
+        creds = _get_credentials()
+        emails = self._fetch_emails(creds)
+        events = self._fetch_calendar_events(creds)
         print(
             f"[DataIngestionAgent] Fetched {len(emails)} emails "
             f"and {len(events)} calendar events"
@@ -52,46 +52,26 @@ class DataIngestionAgent:
         return emails, events
 
     # ------------------------------------------------------------------
-    # Authentication
-    # ------------------------------------------------------------------
-
-    def _authenticate(self):
-        """OAuth2 flow — opens browser on first run, reuses token.json after."""
-        creds = None
-        token_path = Path(config.GOOGLE_TOKEN_PATH)
-
-        if token_path.exists():
-            creds = Credentials.from_authorized_user_file(str(token_path), _SCOPES)
-
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    config.GOOGLE_CREDENTIALS_PATH, _SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-
-            token_path.write_text(creds.to_json())
-
-        self._gmail = build("gmail", "v1", credentials=creds)
-        self._calendar = build("calendar", "v3", credentials=creds)
-
-    # ------------------------------------------------------------------
     # Gmail
     # ------------------------------------------------------------------
 
-    def _fetch_emails(self) -> List[Email]:
-        results = (
-            self._gmail.users()
+    def _fetch_emails(self, creds: Credentials) -> List[Email]:
+        service = build("gmail", "v1", credentials=creds)
+        result = (
+            service.users()
             .messages()
-            .list(userId="me", maxResults=config.MAX_EMAILS, q="in:inbox is:unread")
+            .list(
+                userId="me",
+                maxResults=config.MAX_EMAILS,
+                # Exclude calendar invite notifications; focus on real emails
+                q="in:inbox -subject:Invitation: -subject:\"Updated invitation\" -subject:\"Canceled event\"",
+            )
             .execute()
         )
         emails = []
-        for ref in results.get("messages", []):
+        for ref in result.get("messages", []):
             msg = (
-                self._gmail.users()
+                service.users()
                 .messages()
                 .get(userId="me", id=ref["id"], format="full")
                 .execute()
@@ -109,7 +89,6 @@ class DataIngestionAgent:
                 int(msg["internalDate"]) / 1000, tz=timezone.utc
             )
             raw_from = headers.get("From", "Unknown <unknown@unknown.com>")
-            # Parse "Name <email>" format
             if "<" in raw_from:
                 sender_name = raw_from.split("<")[0].strip().strip('"')
                 sender_email = raw_from.split("<")[-1].strip(">").strip()
@@ -131,13 +110,11 @@ class DataIngestionAgent:
             return None
 
     def _extract_body(self, payload: dict) -> str:
-        """Return plain-text body from a Gmail message payload."""
         if "parts" in payload:
             for part in payload["parts"]:
                 if part["mimeType"] == "text/plain":
                     data = part["body"].get("data", "")
                     return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-                # Recurse into nested multipart
                 if "parts" in part:
                     result = self._extract_body(part)
                     if result:
@@ -151,12 +128,13 @@ class DataIngestionAgent:
     # Google Calendar
     # ------------------------------------------------------------------
 
-    def _fetch_calendar_events(self) -> List[CalendarEvent]:
+    def _fetch_calendar_events(self, creds: Credentials) -> List[CalendarEvent]:
+        service = build("calendar", "v3", credentials=creds)
         now = datetime.now(tz=timezone.utc)
         end = now + timedelta(days=config.CALENDAR_DAYS_AHEAD)
 
         result = (
-            self._calendar.events()
+            service.events()
             .list(
                 calendarId="primary",
                 timeMin=now.isoformat(),
