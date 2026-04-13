@@ -125,8 +125,9 @@ class TeamLeadAgent:
         try:
             return self._run_with_anthropic(task)
         except Exception as exc:
-            if _is_quota_error(exc):
-                print(f"[TeamLeadAgent] Anthropic quota hit — switching to Ollama")
+            if _is_quota_error(exc) or isinstance(exc, anthropic.AuthenticationError):
+                reason = "auth error" if isinstance(exc, anthropic.AuthenticationError) else "quota hit"
+                print(f"[TeamLeadAgent] Anthropic {reason} — switching to Ollama")
                 self._reset_state()
                 return self._run_with_ollama(task)
             raise

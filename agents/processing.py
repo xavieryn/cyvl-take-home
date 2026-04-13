@@ -139,8 +139,9 @@ class ProcessingAgent:
         try:
             return self._run_with_anthropic(emails, events)
         except Exception as exc:
-            if _is_quota_error(exc):
-                print(f"[ProcessingAgent] Anthropic quota hit — switching to Ollama")
+            if _is_quota_error(exc) or isinstance(exc, anthropic.AuthenticationError):
+                reason = "auth error" if isinstance(exc, anthropic.AuthenticationError) else "quota hit"
+                print(f"[ProcessingAgent] Anthropic {reason} — switching to Ollama")
                 self._reset_state()
                 return self._run_with_ollama(emails, events)
             raise
