@@ -1,4 +1,4 @@
-	# AI Chief of Staff — Project Context
+    # AI Chief of Staff — Project Context
 
 Take-home project for the CYVL "AI Intern to the CEO" role.
 Candidate: Xavier Nishikawa · Date: 2026-04-10
@@ -8,13 +8,14 @@ Candidate: Xavier Nishikawa · Date: 2026-04-10
 ## What This Is
 
 A Python multi-agent pipeline that acts as a CEO's AI Chief of Staff:
+
 - Fetches Gmail + Google Calendar (or generates mock data in dev)
 - Triages emails by urgency, extracts action items, drafts replies
 - Writes a structured daily briefing + task notes to an Obsidian vault
-``
-**Run it:**
+  ``
+  **Run it:**
+
 ```bash
-cp .env.example .env          # add ANTHROPIC_API_KEY
 python main.py                # mock data (default)
 python main.py --live         # real Gmail + Calendar
 python main.py --vault ~/Vault --task inbox_triage
@@ -61,27 +62,32 @@ TeamLeadAgent (team_lead.py)
 ```
 
 **TeamLeadAgent** (`agents/team_lead.py`)
+
 - Claude orchestrator with 4 tools; decides execution order
 - Holds pipeline state: `_emails`, `_events`, `_briefing`, `_obsidian_path`
 - Uses lazy imports inside tool methods to avoid circular imports
 
 **MockDataAgent** (`agents/mock_data.py`)
+
 - No LLM, no API calls — pure Python
 - 6 email templates (budget approval, contract renewal, partnership, Buffalo city intro, team lunch, newsletter)
 - 5 calendar events (standup, 1:1, investor call, Nashville demo, board prep)
 - Activated when `config.USE_MOCK_DATA = True` or no `--live` flag
 
 **DataIngestionAgent** (`agents/data_ingestion.py`)
+
 - Google OAuth2 via InstalledAppFlow; caches `token.json`
 - Requires `credentials.json` from Google Cloud Console (Gmail + Calendar APIs enabled)
 - Activated by `--live` flag or `USE_MOCK_DATA=false` in `.env`
 
 **ProcessingAgent** (`agents/processing.py`)
+
 - Claude with adaptive thinking; accumulates state across tool calls
 - Tools: `save_email_analysis`, `save_action_items`, `save_executive_summary`
 - Returns a `DailyBriefing` Pydantic model
 
 **ObsidianAgent** (`agents/obsidian.py`)
+
 - No LLM — pure file I/O
 - On first run: creates all vault folders + installs templates from `vault_templates/`
 - Writes: `Daily Briefings/{date} Daily Briefing.md` + `Tasks/{date} — {title}.md` for HIGH priority items
@@ -105,16 +111,16 @@ DailyBriefing   # date + processed_emails + upcoming_events + action_items + exe
 
 ## Config (`config.py`)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Required. Anthropic API key |
-| `OBSIDIAN_VAULT_PATH` | `~/ObsidianVault/CYVL Chief of Staff` | Where to write notes |
-| `USE_MOCK_DATA` | `True` | `false` to use real Gmail/Calendar |
-| `MODEL` | `claude-opus-4-6` | Claude model for all AI agents |
-| `MAX_TOKENS` | `8096` | Max tokens per AI response |
-| `GOOGLE_CREDENTIALS_PATH` | `credentials.json` | OAuth2 client secret file |
-| `MAX_EMAILS` | `20` | Number of emails to fetch per run |
-| `CALENDAR_DAYS_AHEAD` | `7` | How many days of calendar to pull |
+| Variable                  | Default                               | Description                        |
+| ------------------------- | ------------------------------------- | ---------------------------------- |
+| `ANTHROPIC_API_KEY`       | —                                     | Required. Anthropic API key        |
+| `OBSIDIAN_VAULT_PATH`     | `~/ObsidianVault/CYVL Chief of Staff` | Where to write notes               |
+| `USE_MOCK_DATA`           | `True`                                | `false` to use real Gmail/Calendar |
+| `MODEL`                   | `claude-opus-4-6`                     | Claude model for all AI agents     |
+| `MAX_TOKENS`              | `8096`                                | Max tokens per AI response         |
+| `GOOGLE_CREDENTIALS_PATH` | `credentials.json`                    | OAuth2 client secret file          |
+| `MAX_EMAILS`              | `20`                                  | Number of emails to fetch per run  |
+| `CALENDAR_DAYS_AHEAD`     | `7`                                   | How many days of calendar to pull  |
 
 ---
 
