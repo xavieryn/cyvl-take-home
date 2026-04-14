@@ -29,19 +29,11 @@ def _is_quota_error(exc: Exception) -> bool:
 _TOOLS = [
     {
         "name": "fetch_data",
-        "description": (
-            "Fetch emails and calendar events. "
-            "Uses mock data in dev mode, real Gmail/Calendar in production."
-        ),
+        "description": "Fetch emails and calendar events from Gmail and Google Calendar.",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "use_mock": {
-                    "type": "boolean",
-                    "description": "true = mock data, false = live Gmail/Calendar",
-                }
-            },
-            "required": ["use_mock"],
+            "properties": {},
+            "required": [],
         },
     },
     {
@@ -104,10 +96,9 @@ class TeamLeadAgent:
     def _build_prompt(self, task: str) -> str:
         return (
             f"You are the AI Chief of Staff pipeline orchestrator.\n\n"
-            f"Task: {task}\n"
-            f"Mode: {'DEVELOPMENT — use mock data' if config.USE_MOCK_DATA else 'PRODUCTION — use live data'}\n\n"
+            f"Task: {task}\n\n"
             f"Execute the full pipeline in order:\n"
-            f"1. fetch_data (use_mock={'true' if config.USE_MOCK_DATA else 'false'})\n"
+            f"1. fetch_data\n"
             f"2. analyze_data\n"
             f"3. write_to_obsidian\n"
             f"4. report_completion with a concise summary\n\n"
@@ -119,8 +110,7 @@ class TeamLeadAgent:
     # ------------------------------------------------------------------
 
     def run(self, task: str = "daily_briefing") -> Dict[str, Any]:
-        mode = "mock data" if config.USE_MOCK_DATA else "live Gmail/Calendar"
-        print(f"\n[TeamLeadAgent] Starting: {task} ({mode})")
+        print(f"\n[TeamLeadAgent] Starting: {task}")
         print("=" * 60)
         try:
             return self._run_with_anthropic(task)
@@ -179,11 +169,11 @@ class TeamLeadAgent:
             "type": "function",
             "function": {
                 "name": "fetch_data",
-                "description": "Fetch emails and calendar events (mock or live).",
+                "description": "Fetch emails and calendar events from Gmail and Google Calendar.",
                 "parameters": {
                     "type": "object",
-                    "properties": {"use_mock": {"type": "boolean"}},
-                    "required": ["use_mock"],
+                    "properties": {},
+                    "required": [],
                 },
             },
         },
@@ -285,18 +275,12 @@ class TeamLeadAgent:
             return {"error": str(e), "tool": name}
 
     def _fetch_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if data.get("use_mock", True):
-            from agents.mock_data import MockDataAgent
-            self._emails, self._events = MockDataAgent().run()
-            source = "mock"
-        else:
-            from agents.data_ingestion import DataIngestionAgent
-            self._emails, self._events = DataIngestionAgent().run()
-            source = "live"
+        from agents.data_ingestion import DataIngestionAgent
+        self._emails, self._events = DataIngestionAgent().run()
         return {
             "emails_fetched": len(self._emails),
             "events_fetched": len(self._events),
-            "source": source,
+            "source": "live",
             "preview": [e.subject for e in self._emails[:3]],
         }
 

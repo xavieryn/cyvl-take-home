@@ -18,7 +18,6 @@ OBSIDIAN_VAULT_PATH = Path(
 ).expanduser()
 
 # Pipeline behaviour
-USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "true").lower() == "true"
 MAX_EMAILS = int(os.getenv("MAX_EMAILS", "3"))
 CALENDAR_DAYS_AHEAD = int(os.getenv("CALENDAR_DAYS_AHEAD", "3"))
 

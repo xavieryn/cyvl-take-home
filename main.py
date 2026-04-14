@@ -3,8 +3,7 @@
 AI Chief of Staff — Entry Point
 
 Usage:
-  python main.py                   # run daily briefing with mock data
-  python main.py --live            # run with real Gmail + Calendar
+  python main.py                   # run daily briefing
   python main.py --vault ~/myVault # override Obsidian vault path
   python main.py --task inbox_triage
 """
@@ -25,16 +24,9 @@ def main() -> int:
         default="daily_briefing",
         choices=["daily_briefing", "inbox_triage", "calendar_review"],
     )
-    parser.add_argument(
-        "--live",
-        action="store_true",
-        help="Use real Gmail/Calendar instead of mock data",
-    )
     parser.add_argument("--vault", help="Override Obsidian vault path")
     args = parser.parse_args()
 
-    if args.live:
-        config.USE_MOCK_DATA = False
     if args.vault:
         config.OBSIDIAN_VAULT_PATH = Path(args.vault).expanduser()
 
@@ -45,7 +37,6 @@ def main() -> int:
 
     print("AI Chief of Staff")
     print(f"  Vault : {config.OBSIDIAN_VAULT_PATH}")
-    print(f"  Mode  : {'live data' if not config.USE_MOCK_DATA else 'mock data'}")
     print(f"  Task  : {args.task}")
 
     result = TeamLeadAgent().run(task=args.task)
